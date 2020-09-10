@@ -26,6 +26,8 @@ import numpy as np
 import argparse as ap
 import datetime as dt
 import subprocess as sp
+import hdmlp
+from hdmlp.lib.torch import HDMLPDataLoader
 
 # logging
 # wandb
@@ -51,6 +53,7 @@ from utils import utils
 from utils import losses
 from utils import parsing_helpers as ph
 from data import cam_hdf5_dataset as cam
+from data import HDMLPCam
 from architecture import deeplab_xception
 
 #warmup scheduler
@@ -260,20 +263,22 @@ def main(pargs):
     # Set up the data feeder
     # train
     train_dir = os.path.join(root_dir, "train")
-    train_set = cam.CamDataset(train_dir, 
+    """train_set = cam.CamDataset(train_dir,
                                statsfile = os.path.join(root_dir, 'stats.h5'),
                                channels = pargs.channels,
                                allow_uneven_distribution = False,
                                shuffle = True, 
                                preprocess = True,
                                comm_size = comm_size,
-                               comm_rank = comm_rank)
-    train_loader = DataLoader(train_set,
+                               comm_rank = comm_rank)"""
+    train_set = HDMLPCam.HDMLPCam(train_dir, os.path.join(root_dir, 'stats.h5'), pargs.channels, 2, pargs.max_epochs, False, "/Users/roman/PyCharmProjects/hdmlp/libhdmlp/data/hdmlp.cfg")
+    train_loader = hdmlp.lib.torch.HDMLPDataLoader(train_set)
+    """train_loader = DataLoader(train_set,
                               pargs.local_batch_size,
                               num_workers = min([pargs.max_inter_threads, pargs.local_batch_size]),
                               pin_memory = True,
-                              drop_last = True)
-    
+                              drop_last = True)"""
+
     # validation: we only want to shuffle the set if we are cutting off validation after a certain number of steps
     validation_dir = os.path.join(root_dir, "validation")
     validation_set = cam.CamDataset(validation_dir, 
@@ -327,7 +332,8 @@ def main(pargs):
         logger.log_start(key = "epoch_start", metadata = {'epoch_num': epoch+1, 'step_num': step}, sync=True)
 
         # epoch loop
-        for inputs, label, filename in train_loader:
+        for inputs, label in train_loader:
+            filename = "n/a"
             
             # send to device
             inputs = inputs.to(device)
